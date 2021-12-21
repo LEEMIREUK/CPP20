@@ -142,6 +142,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="C++20.cpp" />
+    <ClCompile Include="Math.ixx" />
+    <ClCompile Include="MathPartition.ixx" />
+    <ClCompile Include="MathPartition_1.ixx" />
+    <ClCompile Include="MathPartition_2.ixx" />
+    <ClCompile Include="Math_Time.ixx" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

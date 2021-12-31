@@ -6,60 +6,89 @@
 #include <atomic>
 #include <thread>
 #include <semaphore>
+#include <latch>
+#include <barrier>
+#include <mutex>
 using namespace std;
 
-// semaphore
+// jthread
 
-counting_semaphore<1> sem(0);
-vector<int> vec;
+mutex mut;
 
-void PrepareWork()
+atomic<bool> endFlag;
+
+void ThreadMain()
 {
-	vec.insert(vec.end(), { 1,2,3,4,5 });
-	this_thread::sleep_for(1s);
-
-	cout << "데이터 준비됨" << endl;
-	sem.release();
+	mut.lock();
+	while (true)
+	{
+		// 오래 걸리는 작업
+		if (endFlag)
+			break;
+	}
+	mut.unlock();
 }
 
-void CompleteWork()
+void JThreadMain(std::stop_token stoken)
 {
-	cout << "데이터 기다리는중..." << endl;
-	sem.acquire();
-
-	cout << "데이터 출력중... " << endl;
-
-	for (auto n : vec)
-		cout << n << endl;
+	while (true)
+	{
+		// 오래 걸리는 작업
+		// 토근을 확인해서 멈춰달라고 요청이 왔는지 체크한다.
+		if(stoken.stop_requested())
+			break;
+	}
 }
 
 int main()
 {
-	// mutex
-	// 화장실 키
-	// [키]
-	// 상호베타적인 특성을 보장하기 위해서 사용하는게 mutex다
+	// C++11에서 thread를 사용할 때
+	//thread t1(ThreadMain);
+	//t1.join();
+	// join을 하지 않으면 
+	// 만약 밖에서 terminate같은 함수에 의해 이 스레드가 강제로 종료되었다면
+	// 이 lock은 영영 풀어지지 않고 unlock을 안해주기 때문에 전체 시스템에 문제가 될수 있다.
+	// 즉, 강제로 다른 스레드를 꺼버리는 작업은 위험한 작업이다.
+	// 이것을 방지하고자 join을 한다.
 
-	// semaphore
-	// 화장실
-	// [키][키][키]
-	// mutex와 같지만 최대 카운터가 1이 아니라 지정할 수 있는 n개이다.
+	//vector<thread> threads;
+	//for (int i = 0; i < 5; ++i)
+	//	threads.push_back(thread(ThreadMain));
+
+	//for (int i = 0; i < 5; ++i)
+	//	threads[i].join();
+
+	// 위 코드는 가독성이 별로 안좋고 비효율적으로 코드가 작성된것 같기에
+	// C++20에서 자동으로 join이 되는 스레드를 새로 추가되었다.
 	
-	//counting_semaphore<3>
-	//binary_semphore = counting_semaphore<1>
+	// Joining Thread
+	//jthread jt(ThreadMain);
+	jthread jt(JThreadMain);
+	// 이렇게 해주면 알아서 소멸이 될때 join을 해준다.
+	// 상대방이 종료해줘야 빠져나올 수 있기 때문에
+	// 위 스레드는 종료되지 않는다.
 
-	//max(); // 최대 카운터 값
-	//acquire(); // counter를 1만큼 감소 (counter = 0 이면 양수가 될 때까지 대기한다.)
-	//release(update = 1); // counter를 update만큼을 증가시킨다. (대기하던 쓰레드가 있으면 풀어줌)
-	//try_acquire(); // counter가 0보다 크면 1 감소하려고 시도
-	//try_acquire_for(relTime); // 최대 relTime만큼 counter를 1감소하려고 시도
-	//try_acquire_until(absTime); // 최대 absTime까지 counter를 1감소하려고 시도
+	
+	// get_stop_source
+	// get_stop_token
+	// request_stop
 
-	thread t1(PrepareWork);
-	thread t2(CompleteWork);
+	// cooperative interruption
+	// 서로 협력해서 멈춘다는 의미
+	// 예를 들어 여러개의 스레드를 동시에 멀티스레드 환경에서 작업하고 있는 상황이고
+	// 작업하다가 특정 상황이 되면 모든 스레드에게 종료하는 신호를 보내야 한다고 가정해보자.
+	// 플래그를 이용해서 신호를 보낼 수 있을 것이다.
+	endFlag = false;
+	// 다양한 방법이 있다.
+	
 
-	t1.join();
-	t2.join();
+	// 요청을 한 것인데 상대방이 무시하면 아무일도 일어나지 않는다.(강제성이 없다.)
+	jt.request_stop();
+
+	// 원래 source -> token 추출 -> 새로운 스레드에 전달
+	// 하지만
+
+	// 결론적으로 복잡한 코드를 사용하지 않고 jthread를 사용하면 필요한 것을 알아서 사용해준다.
 
 	return 0;
 }
